@@ -2,8 +2,6 @@
 
 Lightweight React + Node app for showing one fullscreen video and counting a view after 10 seconds of real playback.
 
-## Development
-
 ```bash
 npm run dev
 ```
