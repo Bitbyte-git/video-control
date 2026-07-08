@@ -7,8 +7,13 @@ const PORT = Number.parseInt(process.env.PORT || "5174", 10);
 const HOST = process.env.HOST || "127.0.0.1";
 const ROOT_DIR = fileURLToPath(new URL(".", import.meta.url));
 const DIST_DIR = resolve(ROOT_DIR, "dist");
+const PUBLIC_DIR = resolve(ROOT_DIR, "public");
 const DATA_DIR = resolve(ROOT_DIR, "data");
 const COUNT_FILE = resolve(DATA_DIR, "view-count.json");
+const PUBLIC_VIDEO_FILE = resolve(PUBLIC_DIR, "video.mp4");
+const DIST_VIDEO_FILE = resolve(DIST_DIR, "video.mp4");
+const ADMIN_CODE = process.env.ADMIN_CODE || "bitbyte123";
+const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
@@ -26,7 +31,7 @@ function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type,X-Admin-Code",
     "Content-Type": "application/json; charset=utf-8",
   });
   response.end(JSON.stringify(body));
@@ -36,9 +41,47 @@ function sendEmpty(response, statusCode) {
   response.writeHead(statusCode, {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type,X-Admin-Code",
   });
   response.end();
+}
+
+function isAdmin(request) {
+  return request.headers["x-admin-code"] === ADMIN_CODE;
+}
+
+function requireAdmin(request, response) {
+  if (isAdmin(request)) {
+    return true;
+  }
+
+  sendJson(response, 401, { error: "Invalid admin code." });
+  return false;
+}
+
+function readRequestBody(request, maxBytes) {
+  return new Promise((resolveBody, rejectBody) => {
+    const chunks = [];
+    let totalBytes = 0;
+
+    request.on("data", (chunk) => {
+      totalBytes += chunk.length;
+
+      if (totalBytes > maxBytes) {
+        rejectBody(new Error("Video file is too large."));
+        request.destroy();
+        return;
+      }
+
+      chunks.push(chunk);
+    });
+
+    request.on("end", () => {
+      resolveBody(Buffer.concat(chunks));
+    });
+
+    request.on("error", rejectBody);
+  });
 }
 
 async function readCount() {
@@ -78,7 +121,20 @@ async function handleApi(request, response) {
     return true;
   }
 
+  if (url.pathname === "/api/admin/login" && request.method === "POST") {
+    if (!requireAdmin(request, response)) {
+      return true;
+    }
+
+    sendJson(response, 200, { count: await readCount(), ok: true });
+    return true;
+  }
+
   if (url.pathname === "/api/views" && request.method === "GET") {
+    if (!requireAdmin(request, response)) {
+      return true;
+    }
+
     sendJson(response, 200, { count: await readCount() });
     return true;
   }
@@ -90,8 +146,45 @@ async function handleApi(request, response) {
   }
 
   if (url.pathname === "/api/views/reset" && request.method === "POST") {
+    if (!requireAdmin(request, response)) {
+      return true;
+    }
+
     const count = await updateCount(() => 0);
     sendJson(response, 200, { count });
+    return true;
+  }
+
+  if (url.pathname === "/api/video" && request.method === "POST") {
+    if (!requireAdmin(request, response)) {
+      return true;
+    }
+
+    const contentType = request.headers["content-type"] || "";
+
+    if (!contentType.startsWith("video/") && contentType !== "application/octet-stream") {
+      sendJson(response, 400, { error: "Upload a video file." });
+      return true;
+    }
+
+    const videoBuffer = await readRequestBody(request, MAX_VIDEO_BYTES);
+
+    if (videoBuffer.length === 0) {
+      sendJson(response, 400, { error: "Video file is empty." });
+      return true;
+    }
+
+    await mkdir(PUBLIC_DIR, { recursive: true });
+    await writeFile(PUBLIC_VIDEO_FILE, videoBuffer);
+
+    try {
+      await stat(DIST_DIR);
+      await writeFile(DIST_VIDEO_FILE, videoBuffer);
+    } catch {
+      // The production build may not exist during local development.
+    }
+
+    sendJson(response, 200, { ok: true });
     return true;
   }
 

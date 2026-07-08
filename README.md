@@ -1,16 +1,71 @@
-# React + Vite
+# Video View Counter
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Lightweight React + Node app for showing one fullscreen video and counting a view after 10 seconds of real playback.
 
-Currently, two official plugins are available:
+## Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Start the app:
 
-## React Compiler
+```bash
+npm run dev
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Open:
 
-## Expanding the Oxlint configuration
+```text
+http://127.0.0.1:5173/
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Admin
+
+Click the `BitByte` button and enter the admin code.
+
+Default code:
+
+```text
+bitbyte123
+```
+
+To change it:
+
+```bash
+ADMIN_CODE=your-secret-code npm run dev
+```
+
+Admin can:
+
+- View count
+- Reset count
+- Upload/replace the video
+
+Uploaded video is saved as:
+
+```text
+public/video.mp4
+```
+
+The view count is saved as:
+
+```text
+data/view-count.json
+```
+
+## Production
+
+Build the frontend:
+
+```bash
+npm run build
+```
+
+Start the Node server:
+
+```bash
+npm start
+```
+
+Open:
+
+```text
+http://127.0.0.1:5174/
+```

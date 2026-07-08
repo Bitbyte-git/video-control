@@ -4,59 +4,38 @@ import "./App.css";
 const REQUIRED_SECONDS = 10;
 const DEFAULT_VIDEO_SRC = "/video.mp4";
 
-async function requestCount(path, options) {
+async function requestJson(path, options) {
   const response = await fetch(path, options);
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error("The view count server did not respond correctly.");
+    throw new Error(data.error || "Request failed.");
   }
 
-  return response.json();
+  return data;
 }
 
 function App() {
   const videoRef = useRef(null);
   const timerRef = useRef(null);
   const lastTickRef = useRef(0);
-  const objectUrlRef = useRef("");
   const watchedSecondsRef = useRef(0);
   const countedThisSessionRef = useRef(false);
 
-  const [videoSrc, setVideoSrc] = useState(DEFAULT_VIDEO_SRC);
-  const [videoName, setVideoName] = useState("public/video.mp4");
-  const [viewCount, setViewCount] = useState(0);
+  const [videoSrc, setVideoSrc] = useState(`${DEFAULT_VIDEO_SRC}?v=${Date.now()}`);
   const [watchedSeconds, setWatchedSeconds] = useState(0);
-  const [countedThisSession, setCountedThisSession] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [viewCount, setViewCount] = useState(0);
+  const [secretCode, setSecretCode] = useState("");
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+  const [adminStatus, setAdminStatus] = useState("");
   const [videoError, setVideoError] = useState("");
-  const [countStatus, setCountStatus] = useState("Loading saved count...");
-
-  const progressPercent = Math.min(
-    100,
-    (watchedSeconds / REQUIRED_SECONDS) * 100,
-  );
 
   useEffect(() => {
-    loadViewCount();
-
     return () => {
       stopTimer();
-
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-      }
     };
   }, []);
-
-  async function loadViewCount() {
-    try {
-      const data = await requestCount("/api/views");
-      setViewCount(data.count);
-      setCountStatus("Backend count is synced.");
-    } catch {
-      setCountStatus("Start the backend server to sync views.");
-    }
-  }
 
   function stopTimer() {
     if (timerRef.current) {
@@ -71,18 +50,13 @@ function App() {
     }
 
     countedThisSessionRef.current = true;
-    setCountedThisSession(true);
 
     try {
-      const data = await requestCount("/api/views/increment", {
+      await requestJson("/api/views/increment", {
         method: "POST",
       });
-      setViewCount(data.count);
-      setCountStatus("View saved on backend.");
     } catch {
       countedThisSessionRef.current = false;
-      setCountedThisSession(false);
-      setCountStatus("Could not save view. Check the backend server.");
     }
   }
 
@@ -105,7 +79,6 @@ function App() {
         REQUIRED_SECONDS,
         watchedSecondsRef.current + elapsedSeconds,
       );
-
       setWatchedSeconds(watchedSecondsRef.current);
 
       if (watchedSecondsRef.current >= REQUIRED_SECONDS) {
@@ -118,137 +91,189 @@ function App() {
     watchedSecondsRef.current = 0;
     countedThisSessionRef.current = false;
     setWatchedSeconds(0);
-    setCountedThisSession(false);
   }
 
-  function handlePlay() {
-    setIsPlaying(true);
-    startTimer();
-  }
+  async function unlockAdmin(event) {
+    event.preventDefault();
+    setAdminStatus("Checking code...");
 
-  function handlePause() {
-    setIsPlaying(false);
-    stopTimer();
-  }
-
-  function handleEnded() {
-    setIsPlaying(false);
-    stopTimer();
-    resetWatchSession();
-  }
-
-  function handleRestart() {
-    const video = videoRef.current;
-    resetWatchSession();
-
-    if (video) {
-      video.currentTime = 0;
-    }
-  }
-
-  async function handleResetCount() {
     try {
-      const data = await requestCount("/api/views/reset", {
+      const data = await requestJson("/api/admin/login", {
+        headers: {
+          "X-Admin-Code": secretCode,
+        },
         method: "POST",
       });
       setViewCount(data.count);
-      setCountStatus("Backend count reset.");
+      setIsAdminUnlocked(true);
+      setAdminStatus("Admin unlocked.");
     } catch {
-      setCountStatus("Could not reset count. Check the backend server.");
+      setIsAdminUnlocked(false);
+      setAdminStatus("Wrong secret code.");
     }
   }
 
-  function handleFileChange(event) {
+  async function refreshViewCount() {
+    setAdminStatus("Loading count...");
+
+    try {
+      const data = await requestJson("/api/views", {
+        headers: {
+          "X-Admin-Code": secretCode,
+        },
+      });
+      setViewCount(data.count);
+      setAdminStatus("Count updated.");
+    } catch {
+      setAdminStatus("Could not load count.");
+    }
+  }
+
+  async function resetViewCount() {
+    setAdminStatus("Resetting count...");
+
+    try {
+      const data = await requestJson("/api/views/reset", {
+        headers: {
+          "X-Admin-Code": secretCode,
+        },
+        method: "POST",
+      });
+      setViewCount(data.count);
+      setAdminStatus("View count reset.");
+    } catch {
+      setAdminStatus("Could not reset count.");
+    }
+  }
+
+  async function uploadVideo(event) {
     const file = event.target.files?.[0];
 
     if (!file) {
       return;
     }
 
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-    }
+    setAdminStatus("Uploading video...");
 
-    objectUrlRef.current = URL.createObjectURL(file);
-    setVideoSrc(objectUrlRef.current);
-    setVideoName(file.name);
-    setVideoError("");
-    resetWatchSession();
+    try {
+      await fetch("/api/video", {
+        body: file,
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+          "X-Admin-Code": secretCode,
+        },
+        method: "POST",
+      }).then(async (response) => {
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || "Upload failed.");
+        }
+      });
+
+      setVideoError("");
+      resetWatchSession();
+      setVideoSrc(`${DEFAULT_VIDEO_SRC}?v=${Date.now()}`);
+      setAdminStatus("Video uploaded.");
+    } catch {
+      setAdminStatus("Could not upload video.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  function closeAdmin() {
+    setIsAdminOpen(false);
+    setIsAdminUnlocked(false);
+    setSecretCode("");
+    setAdminStatus("");
   }
 
   return (
     <main className="app-shell">
-      <section className="viewer-panel" aria-label="Video view counter">
-        <div className="video-column">
-          <div className="video-frame">
-            <video
-              ref={videoRef}
-              key={videoSrc}
-              className="video-player"
-              controls
-              preload="metadata"
-              src={videoSrc}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onEnded={handleEnded}
-              onError={() => {
-                setVideoError("Choose a video file or add one at public/video.mp4");
-              }}
-            />
-          </div>
+      <video
+        ref={videoRef}
+        key={videoSrc}
+        className="video-player"
+        controls
+        playsInline
+        preload="metadata"
+        src={videoSrc}
+        onEnded={() => {
+          stopTimer();
+          resetWatchSession();
+        }}
+        onError={() => {
+          setVideoError("Admin needs to upload a video first.");
+        }}
+        onPause={stopTimer}
+        onPlay={startTimer}
+      />
 
-          {videoError ? <p className="video-error">{videoError}</p> : null}
+      {videoError ? <p className="video-message">{videoError}</p> : null}
 
-          <div className="video-meta">
-            <span>{videoName}</span>
-            <label className="file-picker">
-              <input type="file" accept="video/*" onChange={handleFileChange} />
-              Choose video
-            </label>
-          </div>
+      <button
+        type="button"
+        className="bitbyte-button"
+        onClick={() => {
+          setIsAdminOpen(true);
+        }}
+      >
+        BitByte
+      </button>
+
+      {isAdminOpen ? (
+        <div className="admin-backdrop">
+          <section className="admin-panel" aria-label="BitByte admin panel">
+            <div className="admin-header">
+              <h1>BitByte</h1>
+              <button type="button" className="close-button" onClick={closeAdmin}>
+                Close
+              </button>
+            </div>
+
+            {!isAdminUnlocked ? (
+              <form className="secret-form" onSubmit={unlockAdmin}>
+                <label htmlFor="secretCode">Secret code</label>
+                <input
+                  id="secretCode"
+                  autoFocus
+                  type="password"
+                  value={secretCode}
+                  onChange={(event) => {
+                    setSecretCode(event.target.value);
+                  }}
+                />
+                <button type="submit">Unlock</button>
+              </form>
+            ) : (
+              <div className="admin-tools">
+                <div className="count-block">
+                  <span>Video views</span>
+                  <strong>{viewCount}</strong>
+                </div>
+
+                <div className="admin-actions">
+                  <button type="button" onClick={refreshViewCount}>
+                    Refresh count
+                  </button>
+                  <button type="button" className="danger-button" onClick={resetViewCount}>
+                    Reset count
+                  </button>
+                  <label className="upload-button">
+                    <input type="file" accept="video/*" onChange={uploadVideo} />
+                    Upload video
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {adminStatus ? <p className="admin-status">{adminStatus}</p> : null}
+            <p className="watch-note">
+              Watched {Math.floor(watchedSeconds)}s / {REQUIRED_SECONDS}s
+            </p>
+          </section>
         </div>
-
-        <aside className="counter-panel" aria-label="View count">
-          <div>
-            <p className="eyebrow">Video Views</p>
-            <h1>{viewCount}</h1>
-            <p className="count-status">{countStatus}</p>
-          </div>
-
-          <div className="watch-card">
-            <div className="watch-header">
-              <span>{countedThisSession ? "View counted" : "Watching"}</span>
-              <strong>
-                {Math.floor(watchedSeconds)}s / {REQUIRED_SECONDS}s
-              </strong>
-            </div>
-            <div
-              className="progress-track"
-              aria-label="Watch progress before counting a view"
-              aria-valuemin="0"
-              aria-valuemax={REQUIRED_SECONDS}
-              aria-valuenow={Math.floor(watchedSeconds)}
-              role="progressbar"
-            >
-              <span style={{ width: `${progressPercent}%` }} />
-            </div>
-          </div>
-
-          <div className="status-row">
-            <span className={isPlaying ? "status-dot active" : "status-dot"} />
-            <span>{isPlaying ? "Playing" : "Paused"}</span>
-          </div>
-
-          <div className="actions">
-            <button type="button" onClick={handleRestart}>
-              Restart
-            </button>
-            <button type="button" className="danger-button" onClick={handleResetCount}>
-              Reset views
-            </button>
-          </div>
-        </aside>
-      </section>
+      ) : null}
     </main>
   );
 }
