@@ -4,8 +4,6 @@ Lightweight React + Node app for showing one fullscreen video and counting a vie
 
 ## Development
 
-Start the app:
-
 ```bash
 npm run dev
 ```
