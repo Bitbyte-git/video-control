@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
-import fallbackVideoSrc from "./assets/office tour 2.mp4";
+import bitByteLogo from "./assets/BB-Logo (1).png";
 
 const REQUIRED_SECONDS = 10;
-const DEFAULT_VIDEO_SRC = fallbackVideoSrc;
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(
   /\/$/,
   "",
@@ -26,7 +25,7 @@ function apiUrl(path) {
 
 function videoUrl(url) {
   if (!url) {
-    return `${DEFAULT_VIDEO_SRC}?v=${Date.now()}`;
+    return "";
   }
 
   if (url.startsWith("http")) {
@@ -43,9 +42,7 @@ function App() {
   const watchedSecondsRef = useRef(0);
   const countedThisSessionRef = useRef(false);
 
-  const [videoSrc, setVideoSrc] = useState(
-    `${DEFAULT_VIDEO_SRC}?v=${Date.now()}`,
-  );
+  const [videoSrc, setVideoSrc] = useState("");
   const [watchedSeconds, setWatchedSeconds] = useState(0);
   const [viewCount, setViewCount] = useState(0);
   const [secretCode, setSecretCode] = useState("");
@@ -65,10 +62,18 @@ function App() {
   async function loadVideo() {
     try {
       const data = await requestJson("/api/video");
-      setVideoSrc(videoUrl(data.url));
-      setVideoError("");
+      const nextVideoSrc = videoUrl(data.url);
+      setVideoSrc(nextVideoSrc);
+      setVideoError(
+        nextVideoSrc
+          ? ""
+          : "Upload the final office tour video from the admin panel.",
+      );
     } catch {
-      setVideoSrc(`${DEFAULT_VIDEO_SRC}?v=${Date.now()}`);
+      setVideoSrc("");
+      setVideoError(
+        "Connect the frontend to the Render backend to load the office tour.",
+      );
     }
   }
 
@@ -238,7 +243,9 @@ function App() {
           href="#tour"
           aria-label="BitByte office tour"
         >
-          <span className="brand-mark">B</span>
+          <span className="brand-mark">
+            <img src={bitByteLogo} alt="" />
+          </span>
           <span>
             <strong>BitByte</strong>
             <small>Office Tour</small>
@@ -254,7 +261,7 @@ function App() {
 
       <section className="hero-section" id="tour">
         <div className="hero-copy">
-          <p className="eyebrow">BitByte Office Tour | SRM University</p>
+          <p className="eyebrow">BitByte Office Tour</p>
           <h1>A professional look inside our workspace.</h1>
           <p className="hero-text">
             A polished tour experience built to present the BitByte environment

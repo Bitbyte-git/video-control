@@ -15,7 +15,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 16px clamp(18px, 4vw, 56px);
+  padding: 6px clamp(18px, 4vw, 56px);
   background: rgba(6, 9, 8, 0.72);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   color: #ffffff;
@@ -40,15 +40,24 @@
 }
 
 .brand-mark {
+  position: relative;
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 150px;
+  height: 92px;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
-  background: #ffffff;
-  color: #101411;
-  font-weight: 950;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: hidden;
+  padding: 0;
+  bottom: 20px;
+}
+
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .brand-lockup strong,
@@ -97,9 +106,22 @@
   min-height: 88svh;
   padding: 126px clamp(18px, 5vw, 72px) 76px;
   background:
-    radial-gradient(circle at 82% 18%, rgba(15, 142, 113, 0.24), transparent 30%),
-    radial-gradient(circle at 68% 70%, rgba(241, 189, 79, 0.16), transparent 34%),
-    linear-gradient(110deg, rgba(6, 9, 8, 0.98), rgba(8, 18, 20, 0.78) 58%, rgba(6, 9, 8, 0.96));
+    radial-gradient(
+      circle at 82% 18%,
+      rgba(15, 142, 113, 0.24),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 68% 70%,
+      rgba(241, 189, 79, 0.16),
+      transparent 34%
+    ),
+    linear-gradient(
+      110deg,
+      rgba(6, 9, 8, 0.98),
+      rgba(8, 18, 20, 0.78) 58%,
+      rgba(6, 9, 8, 0.96)
+    );
   isolation: isolate;
 }
 
@@ -111,7 +133,10 @@
     linear-gradient(180deg, rgba(245, 196, 91, 0.08), transparent 34%),
     linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
     linear-gradient(180deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: auto, 64px 64px, 64px 64px;
+  background-size:
+    auto,
+    64px 64px,
+    64px 64px;
   content: "";
   opacity: 0.42;
 }
@@ -236,8 +261,7 @@
 .experience-section {
   display: grid;
   gap: 32px;
-  background:
-    linear-gradient(180deg, #f8f7f1, #ece9df);
+  background: linear-gradient(180deg, #f8f7f1, #ece9df);
   color: #151813;
 }
 
@@ -394,7 +418,11 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.035)
+    ),
     #101613;
 }
 

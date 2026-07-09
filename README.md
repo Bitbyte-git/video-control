@@ -55,6 +55,8 @@ Admin can:
 - Reset the count
 - Upload or replace the office tour video
 
+Do not import large video files inside `frontend/src`. The frontend is hosted on Vercel and should stay lightweight. Upload the final tour video through the admin panel or provide a backend `PUBLIC_VIDEO_URL`.
+
 Local backend data is stored in:
 
 ```text
@@ -93,6 +95,12 @@ Set environment variables:
 ```text
 ADMIN_CODE=your-secret-code
 CORS_ORIGIN=https://your-vercel-site.vercel.app
+```
+
+If the video is already hosted somewhere public, you can skip admin upload and set:
+
+```text
+PUBLIC_VIDEO_URL=https://your-public-video-url.mp4
 ```
 
 Optional persistent storage variables if you attach a Render disk:
