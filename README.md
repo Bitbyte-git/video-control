@@ -97,6 +97,18 @@ ADMIN_CODE=your-secret-code
 CORS_ORIGIN=https://your-vercel-site.vercel.app
 ```
 
+For Vercel preview URLs that change on every deploy, use a wildcard pattern:
+
+```text
+CORS_ORIGIN=https://bitbyte-tech-office-tour-*-bit-byte-techhnologies.vercel.app
+```
+
+You can also allow multiple origins with commas:
+
+```text
+CORS_ORIGIN=https://bitbyte-tech-office-tour.vercel.app,https://bitbyte-tech-office-tour-*-bit-byte-techhnologies.vercel.app
+```
+
 If the video is already hosted somewhere public, you can skip admin upload and set:
 
 ```text

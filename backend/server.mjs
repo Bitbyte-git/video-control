@@ -22,13 +22,28 @@ const allowedOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_ORIGIN |
 
 let storeQueue = Promise.resolve();
 
+function wildcardToRegExp(pattern) {
+  const escapedPattern = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${escapedPattern.replaceAll("*", ".*")}$`);
+}
+
+function matchesAllowedOrigin(origin, allowedOrigin) {
+  return allowedOrigin.includes("*")
+    ? wildcardToRegExp(allowedOrigin).test(origin)
+    : origin === allowedOrigin;
+}
+
 function getAllowedOrigin(request) {
   if (allowedOrigins.includes("*")) {
     return "*";
   }
 
   const requestOrigin = request.headers.origin;
-  return requestOrigin && allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
+  const matchedOrigin = requestOrigin
+    ? allowedOrigins.find((allowedOrigin) => matchesAllowedOrigin(requestOrigin, allowedOrigin))
+    : "";
+
+  return matchedOrigin ? requestOrigin : allowedOrigins[0];
 }
 
 function corsHeaders(request) {
@@ -36,6 +51,7 @@ function corsHeaders(request) {
     "Access-Control-Allow-Headers": "Content-Type,X-Admin-Code",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Origin": getAllowedOrigin(request),
+    "Vary": "Origin",
   };
 }
 
