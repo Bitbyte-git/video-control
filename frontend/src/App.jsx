@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import fallbackVideoSrc from "./assets/4267248-uhd_3840_2160_30fps.mp4";
 import "./App.css";
+import fallbackVideoSrc from "./assets/office tour 2.mp4";
 
 const REQUIRED_SECONDS = 10;
 const DEFAULT_VIDEO_SRC = fallbackVideoSrc;
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(
+  /\/$/,
+  "",
+);
 
 async function requestJson(path, options) {
   const response = await fetch(apiUrl(path), options);
@@ -40,7 +43,9 @@ function App() {
   const watchedSecondsRef = useRef(0);
   const countedThisSessionRef = useRef(false);
 
-  const [videoSrc, setVideoSrc] = useState(`${DEFAULT_VIDEO_SRC}?v=${Date.now()}`);
+  const [videoSrc, setVideoSrc] = useState(
+    `${DEFAULT_VIDEO_SRC}?v=${Date.now()}`,
+  );
   const [watchedSeconds, setWatchedSeconds] = useState(0);
   const [viewCount, setViewCount] = useState(0);
   const [secretCode, setSecretCode] = useState("");
@@ -220,12 +225,19 @@ function App() {
     setAdminStatus("");
   }
 
-  const watchProgress = Math.min(100, (watchedSeconds / REQUIRED_SECONDS) * 100);
+  const watchProgress = Math.min(
+    100,
+    (watchedSeconds / REQUIRED_SECONDS) * 100,
+  );
 
   return (
     <main className="app-shell">
       <header className="site-header">
-        <a className="brand-lockup" href="#tour" aria-label="BitByte office tour">
+        <a
+          className="brand-lockup"
+          href="#tour"
+          aria-label="BitByte office tour"
+        >
           <span className="brand-mark">B</span>
           <span>
             <strong>BitByte</strong>
@@ -245,8 +257,9 @@ function App() {
           <p className="eyebrow">BitByte Office Tour | SRM University</p>
           <h1>A professional look inside our workspace.</h1>
           <p className="hero-text">
-            A polished tour experience built to present the BitByte environment with
-            clarity, confidence, and the professional standard expected by a top university.
+            A polished tour experience built to present the BitByte environment
+            with clarity, confidence, and the professional standard expected by
+            a top university.
           </p>
           <div className="hero-actions">
             <a className="primary-link" href="#experience">
@@ -285,8 +298,8 @@ function App() {
           <p className="eyebrow">Tour presentation</p>
           <h2>Play the BitByte office tour.</h2>
           <p>
-            A focused visual walkthrough of the environment, workflow, and professional
-            culture inside the BitByte office.
+            A focused visual walkthrough of the environment, workflow, and
+            professional culture inside the BitByte office.
           </p>
         </div>
 
@@ -305,7 +318,9 @@ function App() {
                 resetWatchSession();
               }}
               onError={() => {
-                setVideoError("Upload the final office tour video from the admin panel.");
+                setVideoError(
+                  "Upload the final office tour video from the admin panel.",
+                );
               }}
               onPause={stopTimer}
               onPlay={startTimer}
@@ -340,30 +355,43 @@ function App() {
         </div>
       </section>
 
-      <section className="spaces-section" id="spaces" aria-label="BitByte workspace highlights">
+      <section
+        className="spaces-section"
+        id="spaces"
+        aria-label="BitByte workspace highlights"
+      >
         <div className="section-heading">
           <p className="eyebrow">Work environment</p>
           <h2>Built around focused execution and clean collaboration.</h2>
           <p>
-            A concise showcase of the office atmosphere, team rhythm, and presentation
-            readiness behind BitByte.
+            A concise showcase of the office atmosphere, team rhythm, and
+            presentation readiness behind BitByte.
           </p>
         </div>
         <div className="space-grid">
           <article>
             <span>01</span>
             <h3>Focused execution</h3>
-            <p>Quiet working areas for coding, research, design reviews, and delivery.</p>
+            <p>
+              Quiet working areas for coding, research, design reviews, and
+              delivery.
+            </p>
           </article>
           <article>
             <span>02</span>
             <h3>Collaborative reviews</h3>
-            <p>Structured discussion spaces for mentoring, planning, and fast decisions.</p>
+            <p>
+              Structured discussion spaces for mentoring, planning, and fast
+              decisions.
+            </p>
           </article>
           <article>
             <span>03</span>
             <h3>Showcase ready</h3>
-            <p>A composed environment shaped for demos, evaluations, and university visits.</p>
+            <p>
+              A composed environment shaped for demos, evaluations, and
+              university visits.
+            </p>
           </article>
         </div>
       </section>
@@ -384,7 +412,11 @@ function App() {
           <section className="admin-panel" aria-label="BitByte admin panel">
             <div className="admin-header">
               <h1>BitByte</h1>
-              <button type="button" className="close-button" onClick={closeAdmin}>
+              <button
+                type="button"
+                className="close-button"
+                onClick={closeAdmin}
+              >
                 Close
               </button>
             </div>
@@ -414,11 +446,19 @@ function App() {
                   <button type="button" onClick={refreshViewCount}>
                     Refresh count
                   </button>
-                  <button type="button" className="danger-button" onClick={resetViewCount}>
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={resetViewCount}
+                  >
                     Reset count
                   </button>
                   <label className="upload-button">
-                    <input type="file" accept="video/*" onChange={uploadVideo} />
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={uploadVideo}
+                    />
                     Upload video
                   </label>
                 </div>
