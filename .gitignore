@@ -9,6 +9,9 @@ lerna-debug.log*
 
 node_modules
 dist
+frontend/dist
+backend/storage
+backend/public
 dist-ssr
 *.local
 
@@ -23,3 +26,4 @@ dist-ssr
 *.sln
 *.sw?
 public/video.mp4
+frontend/public/video.mp4

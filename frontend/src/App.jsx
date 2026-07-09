@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import fallbackVideoSrc from "./assets/4267248-uhd_3840_2160_30fps.mp4";
 import "./App.css";
 
 const REQUIRED_SECONDS = 10;
-const DEFAULT_VIDEO_SRC = "/video.mp4";
+const DEFAULT_VIDEO_SRC = fallbackVideoSrc;
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
 async function requestJson(path, options) {
-  const response = await fetch(path, options);
+  const response = await fetch(apiUrl(path), options);
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
@@ -13,6 +15,22 @@ async function requestJson(path, options) {
   }
 
   return data;
+}
+
+function apiUrl(path) {
+  return `${API_BASE_URL}${path}`;
+}
+
+function videoUrl(url) {
+  if (!url) {
+    return `${DEFAULT_VIDEO_SRC}?v=${Date.now()}`;
+  }
+
+  if (url.startsWith("http")) {
+    return url;
+  }
+
+  return `${apiUrl(url)}${url.includes("?") ? "&" : "?"}v=${Date.now()}`;
 }
 
 function App() {
@@ -32,10 +50,22 @@ function App() {
   const [videoError, setVideoError] = useState("");
 
   useEffect(() => {
+    loadVideo();
+
     return () => {
       stopTimer();
     };
   }, []);
+
+  async function loadVideo() {
+    try {
+      const data = await requestJson("/api/video");
+      setVideoSrc(videoUrl(data.url));
+      setVideoError("");
+    } catch {
+      setVideoSrc(`${DEFAULT_VIDEO_SRC}?v=${Date.now()}`);
+    }
+  }
 
   function stopTimer() {
     if (timerRef.current) {
@@ -156,7 +186,7 @@ function App() {
     setAdminStatus("Uploading video...");
 
     try {
-      await fetch("/api/video", {
+      const data = await fetch(apiUrl("/api/video"), {
         body: file,
         headers: {
           "Content-Type": file.type || "application/octet-stream",
@@ -168,11 +198,13 @@ function App() {
           const data = await response.json().catch(() => ({}));
           throw new Error(data.error || "Upload failed.");
         }
+
+        return response.json();
       });
 
       setVideoError("");
       resetWatchSession();
-      setVideoSrc(`${DEFAULT_VIDEO_SRC}?v=${Date.now()}`);
+      setVideoSrc(videoUrl(data.url));
       setAdminStatus("Video uploaded.");
     } catch {
       setAdminStatus("Could not upload video.");
@@ -188,37 +220,163 @@ function App() {
     setAdminStatus("");
   }
 
+  const watchProgress = Math.min(100, (watchedSeconds / REQUIRED_SECONDS) * 100);
+
   return (
     <main className="app-shell">
-      <video
-        ref={videoRef}
-        key={videoSrc}
-        className="video-player"
-        controls
-        playsInline
-        preload="metadata"
-        src={videoSrc}
-        onEnded={() => {
-          stopTimer();
-          resetWatchSession();
-        }}
-        onError={() => {
-          setVideoError("Admin needs to upload a video first.");
-        }}
-        onPause={stopTimer}
-        onPlay={startTimer}
-      />
+      <header className="site-header">
+        <a className="brand-lockup" href="#tour" aria-label="BitByte office tour">
+          <span className="brand-mark">B</span>
+          <span>
+            <strong>BitByte</strong>
+            <small>Office Tour</small>
+          </span>
+        </a>
+        <nav className="site-nav" aria-label="Primary navigation">
+          <a href="#tour">Tour</a>
+          <a href="#experience">Experience</a>
+          <a href="#spaces">Spaces</a>
+          <a href="#admin">Admin</a>
+        </nav>
+      </header>
 
-      {videoError ? <p className="video-message">{videoError}</p> : null}
+      <section className="hero-section" id="tour">
+        <div className="hero-copy">
+          <p className="eyebrow">BitByte Office Tour | SRM University</p>
+          <h1>A professional look inside our workspace.</h1>
+          <p className="hero-text">
+            A polished tour experience built to present the BitByte environment with
+            clarity, confidence, and the professional standard expected by a top university.
+          </p>
+          <div className="hero-actions">
+            <a className="primary-link" href="#experience">
+              Watch the tour
+            </a>
+            <button
+              type="button"
+              className="secondary-link"
+              onClick={() => {
+                setIsAdminOpen(true);
+              }}
+            >
+              BitByte admin
+            </button>
+          </div>
+        </div>
+
+        <div className="hero-proof" aria-label="BitByte tour highlights">
+          <div>
+            <strong>01</strong>
+            <span>Office culture</span>
+          </div>
+          <div>
+            <strong>02</strong>
+            <span>Team workflow</span>
+          </div>
+          <div>
+            <strong>03</strong>
+            <span>Professional setup</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="experience-section" id="experience">
+        <div className="section-heading">
+          <p className="eyebrow">Tour presentation</p>
+          <h2>Play the BitByte office tour.</h2>
+          <p>
+            A focused visual walkthrough of the environment, workflow, and professional
+            culture inside the BitByte office.
+          </p>
+        </div>
+
+        <div className="presentation-layout">
+          <div className="video-frame">
+            <video
+              ref={videoRef}
+              key={videoSrc}
+              className="video-player"
+              controls
+              playsInline
+              preload="metadata"
+              src={videoSrc}
+              onEnded={() => {
+                stopTimer();
+                resetWatchSession();
+              }}
+              onError={() => {
+                setVideoError("Upload the final office tour video from the admin panel.");
+              }}
+              onPause={stopTimer}
+              onPlay={startTimer}
+            />
+
+            {videoError ? <p className="video-message">{videoError}</p> : null}
+          </div>
+
+          <aside className="tour-console" aria-label="Tour view tracking">
+            <div className="console-header">
+              <span>View tracking</span>
+              <strong>{Math.floor(watchedSeconds)}s</strong>
+            </div>
+            <div className="progress-track" aria-hidden="true">
+              <span style={{ width: `${watchProgress}%` }} />
+            </div>
+            <dl>
+              <div>
+                <dt>Valid view after</dt>
+                <dd>{REQUIRED_SECONDS}s</dd>
+              </div>
+              <div>
+                <dt>Admin count</dt>
+                <dd>{isAdminUnlocked ? viewCount : "Locked"}</dd>
+              </div>
+              <div>
+                <dt>Presentation mode</dt>
+                <dd>Ready</dd>
+              </div>
+            </dl>
+          </aside>
+        </div>
+      </section>
+
+      <section className="spaces-section" id="spaces" aria-label="BitByte workspace highlights">
+        <div className="section-heading">
+          <p className="eyebrow">Work environment</p>
+          <h2>Built around focused execution and clean collaboration.</h2>
+          <p>
+            A concise showcase of the office atmosphere, team rhythm, and presentation
+            readiness behind BitByte.
+          </p>
+        </div>
+        <div className="space-grid">
+          <article>
+            <span>01</span>
+            <h3>Focused execution</h3>
+            <p>Quiet working areas for coding, research, design reviews, and delivery.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Collaborative reviews</h3>
+            <p>Structured discussion spaces for mentoring, planning, and fast decisions.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Showcase ready</h3>
+            <p>A composed environment shaped for demos, evaluations, and university visits.</p>
+          </article>
+        </div>
+      </section>
 
       <button
         type="button"
-        className="bitbyte-button"
+        className="floating-admin"
+        id="admin"
         onClick={() => {
           setIsAdminOpen(true);
         }}
       >
-        BitByte
+        Admin
       </button>
 
       {isAdminOpen ? (

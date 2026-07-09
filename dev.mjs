@@ -54,5 +54,5 @@ process.on("SIGTERM", () => {
   shutdown(0);
 });
 
-run("api", "node", ["server.mjs"]);
-run("web", "node", ["node_modules/vite/bin/vite.js"]);
+run("api", "npm", ["run", "dev", "--workspace", "backend"]);
+run("web", "npm", ["run", "dev", "--workspace", "frontend"]);

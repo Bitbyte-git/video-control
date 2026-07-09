@@ -1,47 +1,55 @@
 import { createServer } from "node:http";
+import { createReadStream } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { extname, join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PORT = Number.parseInt(process.env.PORT || "5174", 10);
-const HOST = process.env.HOST || "127.0.0.1";
+const HOST = process.env.HOST || "0.0.0.0";
 const ROOT_DIR = fileURLToPath(new URL(".", import.meta.url));
-const DIST_DIR = resolve(ROOT_DIR, "dist");
-const PUBLIC_DIR = resolve(ROOT_DIR, "public");
-const DATA_DIR = resolve(ROOT_DIR, "data");
+const STORAGE_DIR = process.env.STORAGE_DIR ? resolve(process.env.STORAGE_DIR) : ROOT_DIR;
+const DATA_DIR = process.env.DATA_DIR ? resolve(process.env.DATA_DIR) : resolve(STORAGE_DIR, "data");
+const VIDEO_DIR = process.env.VIDEO_DIR ? resolve(process.env.VIDEO_DIR) : resolve(STORAGE_DIR, "public");
 const COUNT_FILE = resolve(DATA_DIR, "view-count.json");
-const PUBLIC_VIDEO_FILE = resolve(PUBLIC_DIR, "video.mp4");
-const DIST_VIDEO_FILE = resolve(DIST_DIR, "video.mp4");
+const VIDEO_FILE = resolve(VIDEO_DIR, "office-tour.mp4");
 const ADMIN_CODE = process.env.ADMIN_CODE || "bitbyte123";
 const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
-
-const contentTypes = {
-  ".css": "text/css; charset=utf-8",
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".mp4": "video/mp4",
-  ".svg": "image/svg+xml",
-  ".webm": "video/webm",
-};
+const PUBLIC_VIDEO_URL = process.env.PUBLIC_VIDEO_URL || "";
+const allowedOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_ORIGIN || "*")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 let storeQueue = Promise.resolve();
 
+function getAllowedOrigin(request) {
+  if (allowedOrigins.includes("*")) {
+    return "*";
+  }
+
+  const requestOrigin = request.headers.origin;
+  return requestOrigin && allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
+}
+
+function corsHeaders(request) {
+  return {
+    "Access-Control-Allow-Headers": "Content-Type,X-Admin-Code",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Origin": getAllowedOrigin(request),
+  };
+}
+
 function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,X-Admin-Code",
+    ...corsHeaders(response.req),
     "Content-Type": "application/json; charset=utf-8",
   });
   response.end(JSON.stringify(body));
 }
 
-function sendEmpty(response, statusCode) {
+function sendEmpty(request, response, statusCode) {
   response.writeHead(statusCode, {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,X-Admin-Code",
+    ...corsHeaders(request),
   });
   response.end();
 }
@@ -99,6 +107,15 @@ async function writeCount(count) {
   await writeFile(COUNT_FILE, `${JSON.stringify({ count }, null, 2)}\n`);
 }
 
+async function hasUploadedVideo() {
+  try {
+    const fileInfo = await stat(VIDEO_FILE);
+    return fileInfo.isFile() && fileInfo.size > 0;
+  } catch {
+    return false;
+  }
+}
+
 function updateCount(updater) {
   const nextOperation = storeQueue
     .catch(() => undefined)
@@ -117,7 +134,12 @@ async function handleApi(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
 
   if (request.method === "OPTIONS") {
-    sendEmpty(response, 204);
+    sendEmpty(request, response, 204);
+    return true;
+  }
+
+  if (url.pathname === "/health" && request.method === "GET") {
+    sendJson(response, 200, { ok: true, service: "bitbyte-office-tour-api" });
     return true;
   }
 
@@ -155,6 +177,12 @@ async function handleApi(request, response) {
     return true;
   }
 
+  if (url.pathname === "/api/video" && request.method === "GET") {
+    const url = (await hasUploadedVideo()) ? "/video.mp4" : PUBLIC_VIDEO_URL;
+    sendJson(response, 200, { url });
+    return true;
+  }
+
   if (url.pathname === "/api/video" && request.method === "POST") {
     if (!requireAdmin(request, response)) {
       return true;
@@ -174,17 +202,10 @@ async function handleApi(request, response) {
       return true;
     }
 
-    await mkdir(PUBLIC_DIR, { recursive: true });
-    await writeFile(PUBLIC_VIDEO_FILE, videoBuffer);
+    await mkdir(VIDEO_DIR, { recursive: true });
+    await writeFile(VIDEO_FILE, videoBuffer);
 
-    try {
-      await stat(DIST_DIR);
-      await writeFile(DIST_VIDEO_FILE, videoBuffer);
-    } catch {
-      // The production build may not exist during local development.
-    }
-
-    sendJson(response, 200, { ok: true });
+    sendJson(response, 200, { ok: true, url: `/video.mp4?v=${Date.now()}` });
     return true;
   }
 
@@ -196,52 +217,93 @@ async function handleApi(request, response) {
   return false;
 }
 
-async function serveStatic(request, response) {
+async function serveVideo(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
-  const requestedPath = decodeURIComponent(url.pathname);
-  const filePath = resolve(
-    DIST_DIR,
-    requestedPath === "/" ? "index.html" : `.${requestedPath}`,
-  );
 
-  if (!filePath.startsWith(DIST_DIR)) {
-    response.writeHead(403);
-    response.end("Forbidden");
+  if (url.pathname !== "/video.mp4" || !["GET", "HEAD"].includes(request.method)) {
+    return false;
+  }
+
+  let fileInfo;
+
+  try {
+    fileInfo = await stat(VIDEO_FILE);
+  } catch {
+    sendJson(response, 404, { error: "No office tour video has been uploaded yet." });
+    return true;
+  }
+
+  const range = request.headers.range;
+  const commonHeaders = {
+    ...corsHeaders(request),
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "no-store",
+    "Content-Type": "video/mp4",
+  };
+
+  if (!range) {
+    response.writeHead(200, {
+      ...commonHeaders,
+      "Content-Length": fileInfo.size,
+    });
+    if (request.method === "HEAD") {
+      response.end();
+      return true;
+    }
+
+    createReadStream(VIDEO_FILE).pipe(response);
+    return true;
+  }
+
+  const match = range.match(/bytes=(\d*)-(\d*)/);
+
+  if (!match) {
+    response.writeHead(416, commonHeaders);
+    response.end();
+    return true;
+  }
+
+  const start = match[1] ? Number.parseInt(match[1], 10) : 0;
+  const end = match[2] ? Number.parseInt(match[2], 10) : fileInfo.size - 1;
+
+  if (start >= fileInfo.size || end >= fileInfo.size || start > end) {
+    response.writeHead(416, {
+      ...commonHeaders,
+      "Content-Range": `bytes */${fileInfo.size}`,
+    });
+    response.end();
     return;
   }
 
-  try {
-    const fileInfo = await stat(filePath);
-    const finalPath = fileInfo.isDirectory() ? join(filePath, "index.html") : filePath;
-    const extension = extname(finalPath);
-    response.writeHead(200, {
-      "Content-Type": contentTypes[extension] || "application/octet-stream",
-    });
-    response.end(await readFile(finalPath));
-  } catch {
-    const fallbackPath = resolve(DIST_DIR, "index.html");
-
-    try {
-      response.writeHead(200, {
-        "Content-Type": "text/html; charset=utf-8",
-      });
-      response.end(await readFile(fallbackPath));
-    } catch {
-      response.writeHead(404, {
-        "Content-Type": "text/plain; charset=utf-8",
-      });
-      response.end("Build the frontend first with npm run build.");
-    }
+  response.writeHead(206, {
+    ...commonHeaders,
+    "Content-Length": end - start + 1,
+    "Content-Range": `bytes ${start}-${end}/${fileInfo.size}`,
+  });
+  if (request.method === "HEAD") {
+    response.end();
+    return true;
   }
+
+  createReadStream(VIDEO_FILE, { end, start }).pipe(response);
+  return true;
 }
 
 const server = createServer(async (request, response) => {
+  response.req = request;
+
   try {
     const handled = await handleApi(request, response);
 
-    if (!handled) {
-      await serveStatic(request, response);
+    if (handled) {
+      return;
     }
+
+    if (await serveVideo(request, response)) {
+      return;
+    }
+
+    sendJson(response, 404, { error: "Route not found." });
   } catch {
     sendJson(response, 500, { error: "Server error." });
   }
