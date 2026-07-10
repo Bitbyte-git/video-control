@@ -52,6 +52,49 @@ function App() {
   const [videoError, setVideoError] = useState("");
 
   useEffect(() => {
+    function blockEvent(event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    function blockRestrictedKeys(event) {
+      const key = event.key.toLowerCase();
+      const hasControlKey = event.ctrlKey || event.metaKey;
+      const isFunctionDevTools = event.key === "F12";
+      const isDevToolsCombo =
+        hasControlKey && event.shiftKey && ["c", "i", "j"].includes(key);
+      const isMacDevToolsCombo =
+        event.metaKey && event.altKey && ["c", "i", "j"].includes(key);
+      const isBlockedShortcut =
+        hasControlKey && ["c", "p", "s", "u"].includes(key);
+
+      if (
+        isFunctionDevTools ||
+        isDevToolsCombo ||
+        isMacDevToolsCombo ||
+        isBlockedShortcut
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }
+
+    document.addEventListener("contextmenu", blockEvent);
+    document.addEventListener("copy", blockEvent);
+    document.addEventListener("cut", blockEvent);
+    document.addEventListener("dragstart", blockEvent);
+    document.addEventListener("keydown", blockRestrictedKeys, true);
+
+    return () => {
+      document.removeEventListener("contextmenu", blockEvent);
+      document.removeEventListener("copy", blockEvent);
+      document.removeEventListener("cut", blockEvent);
+      document.removeEventListener("dragstart", blockEvent);
+      document.removeEventListener("keydown", blockRestrictedKeys, true);
+    };
+  }, []);
+
+  useEffect(() => {
     loadVideo();
 
     return () => {

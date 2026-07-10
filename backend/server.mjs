@@ -17,7 +17,7 @@ const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 const PUBLIC_VIDEO_URL = process.env.PUBLIC_VIDEO_URL || "";
 const allowedOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_ORIGIN || "*")
   .split(",")
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/\/+$/, ""))
   .filter(Boolean);
 
 let storeQueue = Promise.resolve();
@@ -38,7 +38,7 @@ function getAllowedOrigin(request) {
     return "*";
   }
 
-  const requestOrigin = request.headers.origin;
+  const requestOrigin = request.headers.origin?.replace(/\/+$/, "");
   const matchedOrigin = requestOrigin
     ? allowedOrigins.find((allowedOrigin) => matchesAllowedOrigin(requestOrigin, allowedOrigin))
     : "";

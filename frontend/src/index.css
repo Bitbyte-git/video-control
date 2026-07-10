@@ -9,6 +9,9 @@ html {
   background: #080c12;
   color: #f8fbf5;
   scroll-behavior: smooth;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
 }
 
 body {
@@ -23,4 +26,15 @@ body {
 button,
 input {
   font: inherit;
+}
+
+input {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+img,
+video {
+  user-drag: none;
+  -webkit-user-drag: none;
 }
