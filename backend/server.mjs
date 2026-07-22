@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { createReadStream } from "node:fs";
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,7 +13,7 @@ const DATA_DIR = process.env.DATA_DIR ? resolve(process.env.DATA_DIR) : resolve(
 const VIDEO_DIR = process.env.VIDEO_DIR ? resolve(process.env.VIDEO_DIR) : resolve(STORAGE_DIR, "public");
 const COUNT_FILE = resolve(DATA_DIR, "view-count.json");
 const VIDEO_FILE = resolve(VIDEO_DIR, "office-tour.mp4");
-const ADMIN_CODE = process.env.ADMIN_CODE || "bitbyte123";
+const ADMIN_CODE = (process.env.ADMIN_CODE || readFrontendAdminCode() || "bitbyte123").trim();
 const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 const PUBLIC_VIDEO_URL = process.env.PUBLIC_VIDEO_URL || "";
 const allowedOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_ORIGIN || "*")
@@ -21,6 +22,30 @@ const allowedOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_ORIGIN |
   .filter(Boolean);
 
 let storeQueue = Promise.resolve();
+
+function readFrontendAdminCode() {
+  try {
+    const frontendEnv = readFileSync(
+      new URL("../frontend/.env", import.meta.url),
+      "utf8",
+    );
+    const adminLine = frontendEnv
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line.startsWith("VITE_ADMIN_CODE="));
+
+    if (!adminLine) {
+      return "";
+    }
+
+    return adminLine
+      .slice("VITE_ADMIN_CODE=".length)
+      .replace(/^["']|["']$/g, "")
+      .trim();
+  } catch {
+    return "";
+  }
+}
 
 function wildcardToRegExp(pattern) {
   const escapedPattern = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
@@ -71,7 +96,7 @@ function sendEmpty(request, response, statusCode) {
 }
 
 function isAdmin(request) {
-  return request.headers["x-admin-code"] === ADMIN_CODE;
+  return request.headers["x-admin-code"]?.trim() === ADMIN_CODE;
 }
 
 function requireAdmin(request, response) {

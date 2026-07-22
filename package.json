@@ -8,7 +8,7 @@
     "backend"
   ],
   "scripts": {
-    "dev": "node dev.mjs",
+    "dev": "npm run dev --workspace frontend",
     "dev:backend": "npm run dev --workspace backend",
     "dev:frontend": "npm run dev --workspace frontend",
     "build": "npm run build --workspace frontend",

@@ -1,9 +1,32 @@
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const children = [];
+const frontendEnv = readFrontendEnv();
+
+function readFrontendEnv() {
+  try {
+    return Object.fromEntries(
+      readFileSync(new URL("./.env", import.meta.url), "utf8")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("#") && line.includes("="))
+        .map((line) => {
+          const separatorIndex = line.indexOf("=");
+          return [
+            line.slice(0, separatorIndex),
+            line.slice(separatorIndex + 1).replace(/^["']|["']$/g, ""),
+          ];
+        }),
+    );
+  } catch {
+    return {};
+  }
+}
 
 function run(name, command, args, options = {}) {
   const child = spawn(command, args, {
+    cwd: options.cwd,
     env: {
       ...process.env,
       ...options.env,
@@ -54,5 +77,10 @@ process.on("SIGTERM", () => {
   shutdown(0);
 });
 
-run("api", "npm", ["run", "dev", "--workspace", "backend"]);
-run("web", "npm", ["run", "dev", "--workspace", "frontend"]);
+run("api", "node", ["server.mjs"], {
+  cwd: new URL("../backend", import.meta.url),
+  env: {
+    ADMIN_CODE: process.env.ADMIN_CODE || frontendEnv.VITE_ADMIN_CODE,
+  },
+});
+run("web", "node", ["node_modules/vite/bin/vite.js"]);

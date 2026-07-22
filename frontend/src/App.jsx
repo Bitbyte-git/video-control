@@ -3,10 +3,13 @@ import "./App.css";
 import bitByteLogo from "./assets/BB-Logo (1).png";
 
 const REQUIRED_SECONDS = 10;
+const YOUTUBE_VIDEO_ID = "JBmt4mxvbck";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(
   /\/$/,
   "",
 );
+const FRONTEND_ADMIN_CODE = (import.meta.env.VITE_ADMIN_CODE || "").trim();
+let youtubeApiPromise;
 
 async function requestJson(path, options) {
   const response = await fetch(apiUrl(path), options);
@@ -23,33 +26,52 @@ function apiUrl(path) {
   return `${API_BASE_URL}${path}`;
 }
 
-function videoUrl(url) {
-  if (!url) {
-    return "";
+function adminCodeFromInput(inputCode) {
+  return FRONTEND_ADMIN_CODE || inputCode.trim();
+}
+
+function loadYouTubeApi() {
+  if (globalThis.YT?.Player) {
+    return Promise.resolve(globalThis.YT);
   }
 
-  if (url.startsWith("http")) {
-    return url;
+  if (!youtubeApiPromise) {
+    youtubeApiPromise = new Promise((resolve) => {
+      const previousReady = globalThis.onYouTubeIframeAPIReady;
+
+      globalThis.onYouTubeIframeAPIReady = () => {
+        if (typeof previousReady === "function") {
+          previousReady();
+        }
+
+        resolve(globalThis.YT);
+      };
+
+      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+        const script = document.createElement("script");
+        script.src = "https://www.youtube.com/iframe_api";
+        document.head.append(script);
+      }
+    });
   }
 
-  return `${apiUrl(url)}${url.includes("?") ? "&" : "?"}v=${Date.now()}`;
+  return youtubeApiPromise;
 }
 
 function App() {
-  const videoRef = useRef(null);
+  const youtubeMountRef = useRef(null);
+  const youtubePlayerRef = useRef(null);
   const timerRef = useRef(null);
   const lastTickRef = useRef(0);
   const watchedSecondsRef = useRef(0);
   const countedThisSessionRef = useRef(false);
 
-  const [videoSrc, setVideoSrc] = useState("");
   const [watchedSeconds, setWatchedSeconds] = useState(0);
   const [viewCount, setViewCount] = useState(0);
   const [secretCode, setSecretCode] = useState("");
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [adminStatus, setAdminStatus] = useState("");
-  const [videoError, setVideoError] = useState("");
 
   useEffect(() => {
     function blockEvent(event) {
@@ -95,30 +117,46 @@ function App() {
   }, []);
 
   useEffect(() => {
-    loadVideo();
+    let isMounted = true;
+
+    loadYouTubeApi().then((youTube) => {
+      if (!isMounted || !youtubeMountRef.current) {
+        return;
+      }
+
+      youtubePlayerRef.current = new youTube.Player(youtubeMountRef.current, {
+        events: {
+          onStateChange: (event) => {
+            if (event.data === youTube.PlayerState.PLAYING) {
+              startTimer();
+              return;
+            }
+
+            stopTimer();
+
+            if (event.data === youTube.PlayerState.ENDED) {
+              resetWatchSession();
+            }
+          },
+        },
+        playerVars: {
+          modestbranding: 1,
+          playsinline: 1,
+          rel: 0,
+        },
+        videoId: YOUTUBE_VIDEO_ID,
+      });
+    });
 
     return () => {
+      isMounted = false;
       stopTimer();
+
+      if (youtubePlayerRef.current?.destroy) {
+        youtubePlayerRef.current.destroy();
+      }
     };
   }, []);
-
-  async function loadVideo() {
-    try {
-      const data = await requestJson("/api/video");
-      const nextVideoSrc = videoUrl(data.url);
-      setVideoSrc(nextVideoSrc);
-      setVideoError(
-        nextVideoSrc
-          ? ""
-          : "Upload the final office tour video from the admin panel.",
-      );
-    } catch {
-      setVideoSrc("");
-      setVideoError(
-        "Connect the frontend to the Render backend to load the office tour.",
-      );
-    }
-  }
 
   function stopTimer() {
     if (timerRef.current) {
@@ -148,13 +186,6 @@ function App() {
     lastTickRef.current = performance.now();
 
     timerRef.current = setInterval(() => {
-      const video = videoRef.current;
-
-      if (!video || video.paused || video.ended || video.seeking) {
-        lastTickRef.current = performance.now();
-        return;
-      }
-
       const now = performance.now();
       const elapsedSeconds = (now - lastTickRef.current) / 1000;
       lastTickRef.current = now;
@@ -180,10 +211,19 @@ function App() {
     event.preventDefault();
     setAdminStatus("Checking code...");
 
+    const enteredCode = secretCode.trim();
+    const adminCode = adminCodeFromInput(enteredCode);
+
+    if (FRONTEND_ADMIN_CODE && enteredCode !== FRONTEND_ADMIN_CODE) {
+      setIsAdminUnlocked(false);
+      setAdminStatus("Wrong secret code.");
+      return;
+    }
+
     try {
       const data = await requestJson("/api/admin/login", {
         headers: {
-          "X-Admin-Code": secretCode,
+          "X-Admin-Code": adminCode,
         },
         method: "POST",
       });
@@ -202,7 +242,7 @@ function App() {
     try {
       const data = await requestJson("/api/views", {
         headers: {
-          "X-Admin-Code": secretCode,
+          "X-Admin-Code": adminCodeFromInput(secretCode),
         },
       });
       setViewCount(data.count);
@@ -218,7 +258,7 @@ function App() {
     try {
       const data = await requestJson("/api/views/reset", {
         headers: {
-          "X-Admin-Code": secretCode,
+          "X-Admin-Code": adminCodeFromInput(secretCode),
         },
         method: "POST",
       });
@@ -226,43 +266,6 @@ function App() {
       setAdminStatus("View count reset.");
     } catch {
       setAdminStatus("Could not reset count.");
-    }
-  }
-
-  async function uploadVideo(event) {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    setAdminStatus("Uploading video...");
-
-    try {
-      const data = await fetch(apiUrl("/api/video"), {
-        body: file,
-        headers: {
-          "Content-Type": file.type || "application/octet-stream",
-          "X-Admin-Code": secretCode,
-        },
-        method: "POST",
-      }).then(async (response) => {
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "Upload failed.");
-        }
-
-        return response.json();
-      });
-
-      setVideoError("");
-      resetWatchSession();
-      setVideoSrc(videoUrl(data.url));
-      setAdminStatus("Video uploaded.");
-    } catch {
-      setAdminStatus("Could not upload video.");
-    } finally {
-      event.target.value = "";
     }
   }
 
@@ -355,28 +358,7 @@ function App() {
 
         <div className="presentation-layout">
           <div className="video-frame">
-            <video
-              ref={videoRef}
-              key={videoSrc}
-              className="video-player"
-              controls
-              playsInline
-              preload="metadata"
-              src={videoSrc}
-              onEnded={() => {
-                stopTimer();
-                resetWatchSession();
-              }}
-              onError={() => {
-                setVideoError(
-                  "Upload the final office tour video from the admin panel.",
-                );
-              }}
-              onPause={stopTimer}
-              onPlay={startTimer}
-            />
-
-            {videoError ? <p className="video-message">{videoError}</p> : null}
+            <div ref={youtubeMountRef} className="youtube-player" />
           </div>
 
           <aside className="tour-console" aria-label="Tour view tracking">
@@ -503,14 +485,6 @@ function App() {
                   >
                     Reset count
                   </button>
-                  <label className="upload-button">
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={uploadVideo}
-                    />
-                    Upload video
-                  </label>
                 </div>
               </div>
             )}

@@ -43,10 +43,23 @@ Default code:
 bitbyte123
 ```
 
-Change it with:
+For local development, the frontend admin code lives in:
 
-```bash
-ADMIN_CODE=your-secret-code npm run dev
+```text
+frontend/.env
+```
+
+```text
+VITE_ADMIN_CODE=bitbyte123
+```
+
+When you run `npm run dev`, the backend automatically uses that same code as `ADMIN_CODE`.
+
+For deployment, set the same value in both places:
+
+```text
+VITE_ADMIN_CODE=your-secret-code
+ADMIN_CODE=your-secret-code
 ```
 
 Admin can:
@@ -78,6 +91,7 @@ Add this Vercel environment variable after your Render backend is deployed:
 
 ```text
 VITE_API_BASE_URL=https://your-render-service.onrender.com
+VITE_ADMIN_CODE=your-secret-code
 ```
 
 ## Backend Deployment: Render
